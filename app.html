@@ -1,0 +1,1331 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Balance — Subtractive Optimizer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:     #f4f2ee;
+            --bg2:    #eceae4;
+            --text:   #1c1c1c;
+            --mid:    #888;
+            --line:   #d8d4cc;
+            --accent: #3d5a7a;
+            --green:  #4a7c5f;
+            --red:    #8b4040;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 13px;
+            font-weight: 300;
+            line-height: 1.7;
+        }
+
+        /* ── Header ── */
+        header {
+            background: var(--text);
+            color: var(--bg);
+            padding: 16px 24px;
+            display: flex;
+            align-items: baseline;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        header h1 {
+            font-size: 14px;
+            font-weight: 500;
+            letter-spacing: 0.15em;
+        }
+
+        header .sub {
+            font-size: 11px;
+            opacity: 0.5;
+            letter-spacing: 0.08em;
+        }
+
+        .header-nav {
+            margin-left: auto;
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        header .nav-link {
+            font-size: 11px;
+            color: var(--bg);
+            opacity: 0.6;
+            text-decoration: none;
+            letter-spacing: 0.08em;
+            border-bottom: 1px solid rgba(255,255,255,0.3);
+            white-space: nowrap;
+        }
+
+        header .nav-link:hover { opacity: 1; }
+
+        /* ── How to use ── */
+        .howto {
+            background: var(--accent);
+            color: #fff;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            flex-wrap: wrap;
+            font-size: 11px;
+            line-height: 1.8;
+        }
+
+        .howto-title {
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            white-space: nowrap;
+        }
+
+        .howto-steps {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            opacity: 0.9;
+        }
+
+        .howto-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 6px;
+        }
+
+        .step-num {
+            background: rgba(255,255,255,0.25);
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        /* ── Layout ── */
+        .workspace {
+            display: grid;
+            grid-template-columns: 240px 1fr 240px;
+            min-height: calc(100vh - 104px);
+        }
+
+        .panel {
+            border-right: 1px solid var(--line);
+            padding: 24px 20px;
+        }
+
+        .panel:last-child {
+            border-right: none;
+            border-left: 1px solid var(--line);
+        }
+
+        .panel-label {
+            font-size: 10px;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--mid);
+            margin-bottom: 20px;
+            font-weight: 400;
+        }
+
+        /* ── Center canvas ── */
+        .canvas {
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* ── Variant cards ── */
+        .variants {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .variant-card {
+            border: 1px solid var(--line);
+            padding: 20px;
+            background: #fff;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .variant-card.active {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(61,90,122,0.1);
+        }
+
+        .variant-id {
+            font-size: 10px;
+            letter-spacing: 0.15em;
+            color: var(--mid);
+            margin-bottom: 12px;
+            text-transform: uppercase;
+        }
+
+        /* ── Drop zone ── */
+        .variant-preview {
+            height: 180px;
+            position: relative;
+            border: 1px dashed var(--line);
+            background: var(--bg);
+            cursor: pointer;
+            overflow: hidden;
+            transition: border-color 0.15s, background 0.15s;
+        }
+
+        .variant-preview:hover { border-color: var(--accent); }
+
+        .variant-preview.drag-over {
+            border-color: var(--accent);
+            background: rgba(61,90,122,0.05);
+        }
+
+        .variant-preview.has-image {
+            border-style: solid;
+            border-color: var(--line);
+        }
+
+        .file-input {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+        }
+
+        .drop-hint {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            pointer-events: none;
+        }
+
+        .drop-hint span:first-child {
+            font-size: 11px;
+            color: var(--mid);
+        }
+
+        .drop-hint span:last-child {
+            font-size: 10px;
+            color: var(--line);
+            letter-spacing: 0.05em;
+        }
+
+        .variant-preview.has-image .drop-hint { display: none; }
+
+        .preview-img {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: none;
+            pointer-events: none;
+        }
+
+        .variant-preview.has-image .preview-img { display: block; }
+
+        .img-clear {
+            position: absolute;
+            top: 6px;
+            right: 6px;
+            width: 20px;
+            height: 20px;
+            background: rgba(28,28,28,0.6);
+            color: #fff;
+            border: none;
+            font-size: 12px;
+            line-height: 1;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 3;
+            transition: background 0.15s;
+        }
+
+        .img-clear:hover { background: rgba(28,28,28,0.9); }
+
+        .variant-preview.has-image .img-clear { display: flex; }
+
+        /* fit toggle */
+        .fit-toggle {
+            position: absolute;
+            bottom: 6px;
+            right: 6px;
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 9px;
+            letter-spacing: 0.05em;
+            background: rgba(28,28,28,0.5);
+            color: #fff;
+            border: none;
+            padding: 2px 7px;
+            cursor: pointer;
+            display: none;
+            z-index: 3;
+        }
+
+        .fit-toggle:hover { background: rgba(28,28,28,0.85); }
+        .variant-preview.has-image .fit-toggle { display: block; }
+        .preview-img.cover { object-fit: cover; }
+
+        .variant-weight {
+            margin-top: 12px;
+            font-size: 11px;
+            color: var(--mid);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .variant-weight span:last-child {
+            font-weight: 500;
+            color: var(--accent);
+        }
+
+        /* ── MAB visualizer ── */
+        .mab-chart {
+            border: 1px solid var(--line);
+            padding: 20px;
+            background: #fff;
+        }
+
+        .mab-label {
+            font-size: 10px;
+            letter-spacing: 0.15em;
+            color: var(--mid);
+            margin-bottom: 16px;
+            text-transform: uppercase;
+        }
+
+        .bar-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .bar-row:last-child { margin-bottom: 0; }
+
+        .bar-name {
+            width: 72px;
+            font-size: 11px;
+            color: var(--text);
+            flex-shrink: 0;
+        }
+
+        .bar-track {
+            flex: 1;
+            height: 4px;
+            background: var(--line);
+            border-radius: 2px;
+        }
+
+        .bar-fill {
+            height: 100%;
+            border-radius: 2px;
+            background: var(--accent);
+            transition: width 0.5s ease;
+        }
+
+        .bar-fill.b { background: var(--green); }
+
+        .bar-val {
+            font-size: 11px;
+            color: var(--mid);
+            width: 40px;
+            text-align: right;
+        }
+
+        /* ── Controls ── */
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 11px;
+            font-weight: 400;
+            letter-spacing: 0.08em;
+            border: 1px solid var(--text);
+            background: var(--text);
+            color: var(--bg);
+            padding: 8px 18px;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+        }
+
+        .btn:hover { background: var(--accent); border-color: var(--accent); }
+
+        .btn.ghost {
+            background: none;
+            color: var(--mid);
+            border-color: var(--line);
+        }
+
+        .btn.ghost:hover { background: none; border-color: var(--text); color: var(--text); }
+
+        .step-counter {
+            font-size: 11px;
+            color: var(--mid);
+            margin-left: auto;
+        }
+
+        /* ── Side panels: metrics ── */
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--line);
+        }
+
+        .metric-row:last-child { border-bottom: none; }
+
+        .metric-name {
+            font-size: 11px;
+            color: var(--mid);
+        }
+
+        .metric-val {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text);
+        }
+
+        .metric-val.accent { color: var(--accent); }
+        .metric-val.green  { color: var(--green); }
+
+        /* ── Log ── */
+        .log-entry {
+            font-size: 11px;
+            color: var(--mid);
+            padding: 7px 0;
+            border-bottom: 1px solid var(--line);
+            line-height: 1.5;
+        }
+
+        .log-entry .variant-tag {
+            display: inline-block;
+            background: var(--accent);
+            color: #fff;
+            font-size: 9px;
+            padding: 1px 5px;
+            margin-right: 4px;
+        }
+
+        .log-entry .variant-tag.b { background: var(--green); }
+
+        .log-entry .converted { color: var(--green); font-weight: 500; }
+
+        .empty {
+            color: var(--mid);
+            font-size: 11px;
+            text-align: center;
+            padding: 32px 0;
+        }
+
+        /* ── Context Input ── */
+        .context-box {
+            border: 1px solid var(--line);
+            padding: 16px 20px 12px;
+            background: #fff;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .context-fields {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+
+        .context-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            flex: 1;
+            min-width: 130px;
+        }
+
+        .context-label {
+            font-size: 10px;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            color: var(--mid);
+            font-weight: 400;
+        }
+
+        .context-select {
+            font-family: 'Noto Sans JP', sans-serif;
+            font-size: 12px;
+            font-weight: 300;
+            color: var(--text);
+            background: var(--bg);
+            border: 1px solid var(--line);
+            padding: 7px 10px;
+            appearance: none;
+            cursor: pointer;
+            outline: none;
+        }
+
+        .context-select:focus { border-color: var(--accent); }
+
+        /* ── Density meter ── */
+        .density-meter {
+            padding-top: 10px;
+            border-top: 1px solid var(--line);
+        }
+
+        .density-meter-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            color: var(--mid);
+            margin-bottom: 6px;
+            letter-spacing: 0.05em;
+        }
+
+        .density-track {
+            height: 4px;
+            background: var(--bg2);
+            border-radius: 2px;
+            position: relative;
+        }
+
+        .density-fill {
+            height: 100%;
+            background: linear-gradient(to right, var(--accent), var(--green));
+            border-radius: 2px;
+            transition: width 0.4s ease;
+        }
+
+        .density-cursor {
+            position: absolute;
+            top: -4px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--text);
+            border: 2px solid #fff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+            transform: translateX(-50%);
+            transition: left 0.4s ease;
+        }
+
+        .density-hint {
+            font-size: 10px;
+            color: var(--accent);
+            margin-top: 8px;
+            font-weight: 500;
+        }
+
+        /* ── Tooltip ── */
+        .metric-name-wrap {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .tooltip-trigger {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            border: 1px solid var(--line);
+            font-size: 9px;
+            color: var(--mid);
+            cursor: default;
+            position: relative;
+        }
+
+        .tooltip-trigger:hover .tooltip-body { display: block; }
+
+        .tooltip-body {
+            display: none;
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--text);
+            color: var(--bg);
+            font-size: 10px;
+            line-height: 1.6;
+            padding: 8px 12px;
+            width: 200px;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        /* ── Log convergence marker ── */
+        .log-converged {
+            font-size: 10px;
+            color: var(--green);
+            padding: 6px 0;
+            border-bottom: 1px solid var(--line);
+            letter-spacing: 0.05em;
+        }
+
+        /* ── Recommendation box ── */
+        .rec-box {
+            border: 1px solid var(--line);
+            padding: 14px 16px;
+            background: #fff;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .rec-box .rec-label {
+            font-size: 10px;
+            letter-spacing: 0.15em;
+            color: var(--mid);
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .rec-box .rec-text {
+            font-weight: 500;
+            color: var(--accent);
+        }
+
+        .rec-box .rec-hint {
+            font-size: 10px;
+            color: var(--mid);
+            text-align: right;
+        }
+
+        /* ── Mobile ── */
+        @media (max-width: 720px) {
+            .workspace {
+                grid-template-columns: 1fr;
+            }
+
+            .panel {
+                border-right: none;
+                border-left: none;
+                border-top: 1px solid var(--line);
+                padding: 20px 16px;
+            }
+
+            .canvas { padding: 16px; }
+
+            .variants { grid-template-columns: 1fr; }
+
+            .howto-steps { gap: 10px; }
+
+            header { padding: 14px 16px; }
+
+            .header-nav { gap: 12px; }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>BALANCE</h1>
+        <span class="sub">Subtractive Optimizer — v0.1 prototype</span>
+        <div class="header-nav">
+            <a class="nav-link" href="docs.html">Docs</a>
+            <a class="nav-link" href="team.html">Team</a>
+        </div>
+    </header>
+
+    <div class="howto">
+        <span class="howto-title">使い方</span>
+        <div class="howto-steps">
+            <div class="howto-step">
+                <div class="step-num">1</div>
+                <div>バリアントA（現行）とB（要素を引いた版）を用意</div>
+            </div>
+            <div class="howto-step">
+                <div class="step-num">2</div>
+                <div>「訪問をシミュレート」でアクセスを再現</div>
+            </div>
+            <div class="howto-step">
+                <div class="step-num">3</div>
+                <div>Thompson Samplingが自動でトラフィックを最適配分</div>
+            </div>
+            <div class="howto-step">
+                <div class="step-num">4</div>
+                <div>傾向が出たらRecommendationで判断</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="workspace">
+
+        <!-- Left: Metrics -->
+        <div class="panel">
+            <div class="panel-label">セッション指標</div>
+
+            <div class="metric-row">
+                <span class="metric-name">総インプレッション</span>
+                <span class="metric-val" id="metricImpressions">0</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-name">コンバージョン数</span>
+                <span class="metric-val" id="metricConversions">0</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-name">CVR（全体）</span>
+                <span class="metric-val" id="metricCvr">—</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-name">アクティブバリアント</span>
+                <span class="metric-val">2</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-name">アルゴリズム</span>
+                <span class="metric-val">Thompson</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-name">信頼度</span>
+                <span class="metric-val accent" id="metricConfidence">—</span>
+            </div>
+            <div class="metric-row" style="margin-top:12px; padding-top:12px; border-top: 1px solid var(--line);">
+                <span class="metric-name-wrap">
+                    <span class="metric-name" style="color:var(--red)">機会損失（推計）</span>
+                    <span class="tooltip-trigger">?
+                        <span class="tooltip-body">最適なバリアントを最初から出していた場合と比較した、追加できたはずのCV数の推計値。値が小さいほどアルゴリズムが早期に正解を発見できています。</span>
+                    </span>
+                </span>
+                <span class="metric-val" id="metricRegret" style="color:var(--red)">—</span>
+            </div>
+            <div class="metric-row">
+                <span class="metric-name-wrap">
+                    <span class="metric-name">最適配分効率</span>
+                    <span class="tooltip-trigger">?
+                        <span class="tooltip-body">テスト全体でどれだけ最適なバリアントにトラフィックを向けられたかの効率。100%に近いほど無駄のないテストです。</span>
+                    </span>
+                </span>
+                <span class="metric-val" id="metricEfficiency">—</span>
+            </div>
+        </div>
+
+        <!-- Center: Canvas -->
+        <div class="canvas">
+
+            <!-- Context Input -->
+            <div class="context-box">
+                <div class="context-fields">
+                    <div class="context-field">
+                        <span class="context-label">ターゲットペルソナ</span>
+                        <select class="context-select" id="ctxPersona" onchange="onContextChange()">
+                            <option value="craft">工芸愛好家（高文脈・情緒的）</option>
+                            <option value="gift">ギフト購入者（目的明確・短期）</option>
+                            <option value="casual">カジュアルブラウザー（低関与）</option>
+                            <option value="collector">コレクター（比較重視・高関与）</option>
+                        </select>
+                    </div>
+                    <div class="context-field">
+                        <span class="context-label">ジャーニーステージ</span>
+                        <select class="context-select" id="ctxStage" onchange="onContextChange()">
+                            <option value="awareness">認知（はじめての接触）</option>
+                            <option value="consideration">検討（比較・評価中）</option>
+                            <option value="decision">決断（購入直前）</option>
+                        </select>
+                    </div>
+                    <div class="context-field">
+                        <span class="context-label">ユーザー習熟度</span>
+                        <select class="context-select" id="ctxSkill" onchange="onContextChange()">
+                            <option value="beginner">ビギナー（説明・安心感が必要）</option>
+                            <option value="expert">エキスパート（スペック・比較重視）</option>
+                        </select>
+                    </div>
+                </div>
+                <!-- Density meter -->
+                <div class="density-meter">
+                    <div class="density-meter-label">
+                        <span>← 引き算推奨</span>
+                        <span>足し算推奨 →</span>
+                    </div>
+                    <div class="density-track">
+                        <div class="density-fill" id="densityFill" style="width:20%"></div>
+                        <div class="density-cursor" id="densityCursor" style="left:20%"></div>
+                    </div>
+                    <div class="density-hint" id="densityHint">このコンテキストでは引き算が有効です</div>
+                </div>
+            </div>
+
+            <div class="variants" id="variantGrid">
+                <div class="variant-card active" data-id="A">
+                    <div class="variant-id">Variant A — 現行デザイン</div>
+                    <div class="variant-preview" id="previewA">
+                        <input type="file" accept="image/*" class="file-input" id="fileA">
+                        <div class="drop-hint">
+                            <span>画像をドロップ</span>
+                            <span>またはクリックして選択</span>
+                        </div>
+                        <img class="preview-img" id="imgA" alt="Variant A">
+                        <button class="img-clear" onclick="clearImage('A', event)">×</button>
+                        <button class="fit-toggle" id="fitA" onclick="toggleFit('A', event)">contain</button>
+                    </div>
+                    <div class="variant-weight">
+                        <span>トラフィック配分</span>
+                        <span id="weightA">50%</span>
+                    </div>
+                </div>
+                <div class="variant-card" data-id="B">
+                    <div class="variant-id">Variant B — 引き算版</div>
+                    <div class="variant-preview" id="previewB">
+                        <input type="file" accept="image/*" class="file-input" id="fileB">
+                        <div class="drop-hint">
+                            <span>画像をドロップ</span>
+                            <span>またはクリックして選択</span>
+                        </div>
+                        <img class="preview-img" id="imgB" alt="Variant B">
+                        <button class="img-clear" onclick="clearImage('B', event)">×</button>
+                        <button class="fit-toggle" id="fitB" onclick="toggleFit('B', event)">contain</button>
+                    </div>
+                    <div class="variant-weight">
+                        <span>トラフィック配分</span>
+                        <span id="weightB">50%</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mab-chart">
+                <div class="mab-label">事後分布 — Thompson Sampling</div>
+                <div class="bar-row">
+                    <div class="bar-name">Variant A</div>
+                    <div class="bar-track"><div class="bar-fill" id="barA" style="width:50%"></div></div>
+                    <div class="bar-val" id="valA">0.500</div>
+                </div>
+                <div class="bar-row">
+                    <div class="bar-name">Variant B</div>
+                    <div class="bar-track"><div class="bar-fill b" id="barB" style="width:50%"></div></div>
+                    <div class="bar-val" id="valB">0.500</div>
+                </div>
+            </div>
+
+            <div class="rec-box">
+                <div>
+                    <div class="rec-label">Recommendation</div>
+                    <div class="rec-text" id="metricRec">データ収集中...</div>
+                </div>
+                <div class="rec-hint" id="recHint">20件以上で傾向を表示</div>
+            </div>
+
+            <div class="controls">
+                <button class="btn" onclick="simulateStep()">訪問をシミュレート</button>
+                <button class="btn ghost" onclick="simulateBatch()">× 50 まとめて実行</button>
+                <button class="btn ghost" onclick="resetAll()">リセット</button>
+                <span class="step-counter" id="stepCounter">ステップ 0</span>
+            </div>
+
+        </div>
+
+        <!-- Right: Log -->
+        <div class="panel">
+            <div class="panel-label">判断ログ</div>
+            <div id="insightBox" style="display:none; margin-bottom:16px; padding:12px; background:#fff; border:1px solid var(--line); font-size:11px; line-height:1.7; color:var(--text);">
+                <div style="font-size:10px; letter-spacing:0.12em; text-transform:uppercase; color:var(--mid); margin-bottom:6px;">考察</div>
+                <div id="insightText"></div>
+            </div>
+            <div id="logList">
+                <div class="empty">まだデータがありません</div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // ── IndexedDB ──
+        const DB_NAME = 'balance_optimizer';
+        const STORE   = 'images';
+
+        function openDB() {
+            return new Promise((resolve, reject) => {
+                const req = indexedDB.open(DB_NAME, 1);
+                req.onupgradeneeded = e => e.target.result.createObjectStore(STORE);
+                req.onsuccess  = e => resolve(e.target.result);
+                req.onerror    = e => reject(e.target.error);
+            });
+        }
+
+        async function saveImage(key, dataUrl) {
+            const db = await openDB();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(STORE, 'readwrite');
+                tx.objectStore(STORE).put(dataUrl, key);
+                tx.oncomplete = resolve;
+                tx.onerror = e => reject(e.target.error);
+            });
+        }
+
+        async function loadImage(key) {
+            const db = await openDB();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(STORE, 'readonly');
+                const req = tx.objectStore(STORE).get(key);
+                req.onsuccess = e => resolve(e.target.result || null);
+                req.onerror   = e => reject(e.target.error);
+            });
+        }
+
+        async function deleteImage(key) {
+            const db = await openDB();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction(STORE, 'readwrite');
+                tx.objectStore(STORE).delete(key);
+                tx.oncomplete = resolve;
+                tx.onerror = e => reject(e.target.error);
+            });
+        }
+
+        // ── Image display ──
+        function applyImage(variantId, dataUrl) {
+            const preview = document.getElementById('preview' + variantId);
+            const img     = document.getElementById('img' + variantId);
+            img.src = dataUrl;
+            preview.classList.add('has-image');
+        }
+
+        function clearImage(variantId, e) {
+            if (e) e.stopPropagation();
+            const preview = document.getElementById('preview' + variantId);
+            const img     = document.getElementById('img' + variantId);
+            const fileInput = document.getElementById('file' + variantId);
+            img.src = '';
+            preview.classList.remove('has-image');
+            fileInput.value = '';
+            deleteImage('variant_' + variantId);
+        }
+
+        // ── File reader ──
+        function readFile(file, variantId) {
+            if (!file || !file.type.startsWith('image/')) return;
+            const reader = new FileReader();
+            reader.onload = e => {
+                const dataUrl = e.target.result;
+                applyImage(variantId, dataUrl);
+                saveImage('variant_' + variantId, dataUrl);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // ── Drop zone setup ──
+        function setupDropZone(variantId) {
+            const zone      = document.getElementById('preview' + variantId);
+            const fileInput = document.getElementById('file' + variantId);
+
+            // クリック → ファイル選択
+            fileInput.addEventListener('change', e => {
+                readFile(e.target.files[0], variantId);
+            });
+
+            // ドラッグ
+            zone.addEventListener('dragover', e => {
+                e.preventDefault();
+                zone.classList.add('drag-over');
+            });
+            zone.addEventListener('dragleave', () => {
+                zone.classList.remove('drag-over');
+            });
+            zone.addEventListener('drop', e => {
+                e.preventDefault();
+                zone.classList.remove('drag-over');
+                readFile(e.dataTransfer.files[0], variantId);
+            });
+        }
+
+        // ── Fit toggle ──
+        function toggleFit(variantId, e) {
+            if (e) e.stopPropagation();
+            const img = document.getElementById('img' + variantId);
+            const btn = document.getElementById('fit' + variantId);
+            const isCover = img.classList.toggle('cover');
+            btn.textContent = isCover ? 'cover' : 'contain';
+            localStorage.setItem('fit_' + variantId, isCover ? 'cover' : 'contain');
+        }
+
+        // ── 初期化：保存済み画像・フィット設定を復元 ──
+        async function initImages() {
+            setupDropZone('A');
+            setupDropZone('B');
+            for (const id of ['A', 'B']) {
+                const dataUrl = await loadImage('variant_' + id);
+                if (dataUrl) applyImage(id, dataUrl);
+                const fit = localStorage.getItem('fit_' + id);
+                if (fit === 'cover') {
+                    document.getElementById('img' + id).classList.add('cover');
+                    document.getElementById('fit' + id).textContent = 'cover';
+                }
+            }
+        }
+
+        initImages();
+
+        // ── Context persistence ──
+        const CTX_KEY = 'balance_context';
+
+        function loadContext() {
+            try { return JSON.parse(localStorage.getItem(CTX_KEY)) || {}; } catch(e) { return {}; }
+        }
+
+        function saveContext() {
+            localStorage.setItem(CTX_KEY, JSON.stringify({
+                persona: document.getElementById('ctxPersona').value,
+                stage:   document.getElementById('ctxStage').value,
+                skill:   document.getElementById('ctxSkill').value
+            }));
+        }
+
+        // コンテキスト復元
+        (function() {
+            const c = loadContext();
+            if (c.persona) document.getElementById('ctxPersona').value = c.persona;
+            if (c.stage)   document.getElementById('ctxStage').value   = c.stage;
+            if (c.skill)   document.getElementById('ctxSkill').value   = c.skill;
+        })();
+
+        function onContextChange() {
+            saveContext();
+            updateDensityMeter();
+            updateUI();
+        }
+
+        // ── 情報密度メーター ──
+        // persona × stage × skill → 0〜100（0=引き算, 100=足し算）
+        function calcDensityScore() {
+            const persona = document.getElementById('ctxPersona').value;
+            const stage   = document.getElementById('ctxStage').value;
+            const skill   = document.getElementById('ctxSkill').value;
+
+            const stageBase = { awareness: 20, consideration: 50, decision: 72 }[stage] ?? 50;
+            const personaAdj = { craft: -12, gift: 0, casual: -8, collector: 15 }[persona] ?? 0;
+            const skillAdj   = { beginner: 12, expert: -10 }[skill] ?? 0;
+
+            return Math.max(5, Math.min(95, stageBase + personaAdj + skillAdj));
+        }
+
+        function updateDensityMeter() {
+            const score = calcDensityScore();
+            document.getElementById('densityFill').style.width   = score + '%';
+            document.getElementById('densityCursor').style.left  = score + '%';
+
+            const hints = [
+                [0,  30, '引き算を強く推奨。余白と感情フックを優先してください'],
+                [30, 55, '引き算傾向。差別化に必要な要素のみ残すことを推奨'],
+                [55, 70, 'バランス。構造的な情報整理が有効です'],
+                [70, 85, '足し算傾向。安心感・スペック・FAQの充実を推奨'],
+                [85, 100,'足し算を推奨。詳細情報と不安解消要素を積極的に追加してください'],
+            ];
+            const hint = hints.find(([lo, hi]) => score >= lo && score < hi);
+            document.getElementById('densityHint').textContent = hint ? hint[2] : '';
+        }
+
+        updateDensityMeter();
+
+        // ── Thompson Sampling ──
+        const STAT_KEY = 'balance_stats';
+
+        function loadStats() {
+            try {
+                const s = JSON.parse(localStorage.getItem(STAT_KEY));
+                if (s) return s;
+            } catch(e) {}
+            return null;
+        }
+
+        function saveStats() {
+            localStorage.setItem(STAT_KEY, JSON.stringify({
+                alphaA: variants.A.alpha, betaA: variants.A.beta,
+                alphaB: variants.B.alpha, betaB: variants.B.beta,
+                impressions: totalImpressions,
+                conversions: totalConversions,
+                regret: cumulativeRegret,
+                convergedAt
+            }));
+        }
+
+        function addConvergenceMarker() {
+            const list = document.getElementById('logList');
+            const marker = document.createElement('div');
+            marker.className = 'log-converged';
+            marker.textContent = `← Step ${convergedAt} でアルゴリズムが収束し始めました`;
+            list.insertBefore(marker, list.firstChild);
+        }
+
+        const saved = loadStats();
+
+        const variants = {
+            A: { alpha: saved?.alphaA ?? 1, beta: saved?.betaA ?? 1 },
+            B: { alpha: saved?.alphaB ?? 1, beta: saved?.betaB ?? 1 }
+        };
+        let totalImpressions  = saved?.impressions  ?? 0;
+        let totalConversions  = saved?.conversions  ?? 0;
+        let cumulativeRegret  = saved?.regret       ?? 0;
+        let convergedAt       = saved?.convergedAt  ?? null;
+        const logData = [];
+
+        // 隠れた真のCVR（アルゴリズムには非公開）
+        const trueRates = { A: 0.12, B: 0.18 };
+
+        function betaSample(a, b) {
+            let x, y;
+            do {
+                x = Math.pow(Math.random(), 1 / a);
+                y = Math.pow(Math.random(), 1 / b);
+            } while (x + y > 1);
+            return x / (x + y);
+        }
+
+        function chooseVariant() {
+            const sA = betaSample(variants.A.alpha, variants.A.beta);
+            const sB = betaSample(variants.B.alpha, variants.B.beta);
+            return sA >= sB ? 'A' : 'B';
+        }
+
+        function simulateStep() {
+            const chosen = chooseVariant();
+            const converted = Math.random() < trueRates[chosen];
+
+            if (converted) {
+                variants[chosen].alpha += 1;
+                totalConversions++;
+            } else {
+                variants[chosen].beta += 1;
+            }
+            totalImpressions++;
+
+            // Regret = best_possible_rate - actual_chosen_rate（推計）
+            const bestRate = Math.max(trueRates.A, trueRates.B);
+            cumulativeRegret += bestRate - trueRates[chosen];
+
+            // 収束検出（初回のみ）
+            const mA = getMean(variants.A.alpha, variants.A.beta);
+            const mB = getMean(variants.B.alpha, variants.B.beta);
+            if (!convergedAt && totalImpressions >= 30 && Math.abs(mA - mB) > 0.08) {
+                convergedAt = totalImpressions;
+                addConvergenceMarker();
+            }
+
+            addLog(chosen, converted);
+            saveStats();
+            updateUI();
+        }
+
+        function simulateBatch() {
+            for (let i = 0; i < 50; i++) simulateStep();
+        }
+
+        function resetAll() {
+            variants.A.alpha = 1; variants.A.beta = 1;
+            variants.B.alpha = 1; variants.B.beta = 1;
+            totalImpressions = 0; totalConversions = 0;
+            cumulativeRegret = 0; convergedAt = null;
+            logData.length = 0;
+            localStorage.removeItem(STAT_KEY);
+            document.getElementById('logList').innerHTML = '<div class="empty">まだデータがありません</div>';
+            document.getElementById('insightBox').style.display = 'none';
+            document.getElementById('metricRegret').textContent = '—';
+            document.getElementById('metricEfficiency').textContent = '—';
+            updateUI();
+        }
+
+        function addLog(variant, converted) {
+            const list = document.getElementById('logList');
+            if (logData.length === 0) list.innerHTML = '';
+            logData.unshift({ variant, converted, n: totalImpressions });
+            if (logData.length > 50) logData.pop();
+
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML =
+                `#${totalImpressions} <span class="variant-tag ${variant === 'B' ? 'b' : ''}">${variant}</span>` +
+                (converted ? '<span class="converted">コンバージョン</span>' : 'アクションなし');
+            list.insertBefore(entry, list.firstChild);
+            while (list.children.length > 40) list.removeChild(list.lastChild);
+        }
+
+        function getMean(a, b) { return a / (a + b); }
+
+        // ── Context-aware Recommendation text ──
+        function getRecText(winner, persona, stage, skill) {
+            const isSubtract = winner === 'B';
+            const map = {
+                awareness: {
+                    craft:    isSubtract ? '認知フェーズでは余白が感情移入を促します。引き算版が有効な傾向です。' : '認知フェーズでも現行の情報量が有効でした。このペルソナは文脈を必要とします。',
+                    gift:     isSubtract ? 'ギフト購入者は直感で判断します。シンプルな訴求が有効な傾向です。'     : '認知段階でもある程度の情報が安心感を与えています。',
+                    casual:   isSubtract ? '低関与ユーザーには引き算が有効。視覚的ノイズを減らすと離脱が減る傾向です。' : '思ったより情報量が有効でした。再検討の余地があります。',
+                    collector:'引き算版が有効ですが、コレクターは詳細情報を必要とする場合があります。要観察。' ,
+                },
+                consideration: {
+                    craft:    isSubtract ? '検討フェーズでも引き算が有効。このペルソナは情報より体験を重視しています。' : '検討フェーズでは情報量が必要でした。差別化要素の明示を維持してください。',
+                    gift:     isSubtract ? 'ギフト検討者は迷いを減らす要素を好みます。シンプルな比較軸が有効です。'     : 'ギフト購入者の検討段階では情報が意思決定を助けています。',
+                    casual:   isSubtract ? '検討に入っていないユーザーには引き算が有効。まず注意を引くことが優先です。'   : '思ったより情報量への反応が良好です。',
+                    collector: isSubtract ? '意外な結果。コレクターも情報疲労を起こす可能性があります。情報の質を見直してください。' : '検討フェーズのコレクターには情報量が必要です。仕様・背景の充実を検討してください。',
+                },
+                decision: {
+                    craft:    isSubtract ? '決断フェーズでも引き算が有効。購入の障壁となっていた要素がある可能性があります。' : '決断フェーズでは情報量が安心感を提供しています。FAQや保証情報の維持を推奨します。',
+                    gift:     isSubtract ? '購入直前のギフト購入者には摩擦の除去が有効です。フォームや選択肢を簡略化してください。' : '決断を後押しする情報が機能しています。',
+                    casual:   isSubtract ? '決断フェーズに入った低関与ユーザーには障壁の除去が最優先です。' : '情報が信頼感を補完しています。',
+                    collector: isSubtract ? '意外な結果。購入直前のコレクターが情報過多になっている可能性があります。' : '決断フェーズのコレクターには詳細情報が有効です。仕様や希少性の訴求を維持してください。',
+                },
+            };
+            const base = map[stage]?.[persona] ?? (isSubtract ? 'Bが優位 — 要素を削除する方向が有効かもしれません' : 'Aが優位 — 現行デザインを維持する方向が有効かもしれません');
+            const skillSuffix = {
+                beginner: isSubtract ? '（ビギナーへの説明補足は別途確保してください）' : '（ビギナー向けの案内テキストが効いている可能性があります）',
+                expert:   isSubtract ? '（エキスパートには余白が信頼感を生みます）'     : '（エキスパートはスペック情報を評価しています）',
+            }[skill] ?? '';
+            return base + skillSuffix;
+        }
+
+        function getRecTextTie(persona, stage, skill) {
+            const map = {
+                awareness:    '認知フェーズで差が出ていません。画像・コピーの訴求力自体を見直す余地があります。',
+                consideration:'検討フェーズで差がありません。情報の「量」より「構造」の問題かもしれません。',
+                decision:     '決断フェーズで差が出ていません。引き算以外の要因（価格・信頼性）を確認してください。',
+            };
+            return map[stage] ?? 'まだ差が出ていません。引き続き収集中。';
+        }
+
+        // ── Insight generator（50件以上） ──
+        function generateInsight(winner, persona, stage, skill, mA, mB) {
+            const personaLabel = {
+                craft: '工芸愛好家', gift: 'ギフト購入者', casual: 'カジュアルブラウザー', collector: 'コレクター'
+            }[persona];
+            const stageLabel = {
+                awareness: '認知フェーズ', consideration: '検討フェーズ', decision: '決断フェーズ'
+            }[stage];
+            const winnerLabel = winner === 'B' ? '要素を削減したB' : winner === 'A' ? '情報量を維持したA' : '両バリアント';
+            const densityAdvice = {
+                'B-awareness':     '認知段階では処理流暢性が信頼感を生みます。視覚的ノイズの削除がこのペルソナには有効でした。',
+                'B-consideration': '検討段階でも引き算が機能したことは、このペルソナが情報より体験で判断することを示唆しています。',
+                'B-decision':      '購入直前に障壁となっていた要素を特定できた可能性があります。削除した要素を記録しておいてください。',
+                'A-awareness':     '認知段階でも情報量が有効でした。このペルソナは文脈を必要としています。コピーの質を高める方向を検討してください。',
+                'A-consideration': '検討段階での情報量維持が有効です。差別化要素や素材・産地情報がこのペルソナの意思決定を助けています。',
+                'A-decision':      '決断段階では安心感の提供が効きています。FAQや保証・配送情報の充実を継続してください。',
+            };
+            const key = winner ? `${winner}-${stage}` : null;
+            const specific = key ? (densityAdvice[key] ?? '') : 'バリアント間に有意な差は見られませんでした。情報の構造や視覚的ヒエラルキーの見直しを検討してください。';
+
+            const skillLabel = { beginner: 'ビギナー層', expert: 'エキスパート層' }[skill] ?? '';
+            const skillNote = skill === 'beginner' && winner === 'B'
+                ? ' ビギナーでも引き算が有効であった点は、情報の「質」が「量」より重要であることを示唆しています。'
+                : skill === 'expert' && winner === 'A'
+                ? ' エキスパートが情報量を必要としたことは、このカテゴリの専門知識要求が高いことを示しています。'
+                : '';
+
+            const regretNote = convergedAt
+                ? ` アルゴリズムはStep ${convergedAt}で収束を開始し、それ以降の機会損失は最小化されています。`
+                : '';
+
+            return `${stageLabel}・${skillLabel}の${personaLabel}において、${winnerLabel}が優位な傾向を示しました（CVR差: ${Math.abs((mB - mA) * 100).toFixed(1)}pt）。${specific}${skillNote}${regretNote}`;
+        }
+
+        function getConfidenceLabel() {
+            const n = totalImpressions;
+            if (n < 20) return '収集中…';
+            const mA = getMean(variants.A.alpha, variants.A.beta);
+            const mB = getMean(variants.B.alpha, variants.B.beta);
+            const diff = Math.abs(mA - mB);
+            if (diff < 0.02) return '判断保留';
+            if (diff < 0.05) return '弱いシグナル';
+            if (diff < 0.1)  return '中程度の傾向';
+            return '明確な傾向あり';
+        }
+
+        function updateUI() {
+            const mA = getMean(variants.A.alpha, variants.A.beta);
+            const mB = getMean(variants.B.alpha, variants.B.beta);
+            const total = mA + mB;
+
+            document.getElementById('barA').style.width = (mA / total * 100).toFixed(1) + '%';
+            document.getElementById('barB').style.width = (mB / total * 100).toFixed(1) + '%';
+            document.getElementById('valA').textContent = mA.toFixed(3);
+            document.getElementById('valB').textContent = mB.toFixed(3);
+
+            const wA = Math.round(mA / total * 100);
+            document.getElementById('weightA').textContent = wA + '%';
+            document.getElementById('weightB').textContent = (100 - wA) + '%';
+
+            document.getElementById('metricImpressions').textContent = totalImpressions;
+            document.getElementById('metricConversions').textContent = totalConversions;
+            document.getElementById('metricCvr').textContent =
+                totalImpressions > 0 ? (totalConversions / totalImpressions * 100).toFixed(1) + '%' : '—';
+
+            const conf = getConfidenceLabel();
+            document.getElementById('metricConfidence').textContent = conf;
+            document.getElementById('stepCounter').textContent = `ステップ ${totalImpressions}`;
+
+            // Regret（機会損失）
+            if (totalImpressions > 0) {
+                const regretPct = (cumulativeRegret / totalImpressions * 100).toFixed(1);
+                document.getElementById('metricRegret').textContent = `${cumulativeRegret.toFixed(1)} CV相当`;
+                const efficiency = Math.max(0, 100 - parseFloat(regretPct)).toFixed(1);
+                document.getElementById('metricEfficiency').textContent = efficiency + '%';
+            }
+
+            // Context
+            const persona = document.getElementById('ctxPersona').value;
+            const stage   = document.getElementById('ctxStage').value;
+            const skill   = document.getElementById('ctxSkill').value;
+
+            // Recommendation（コンテキスト対応）
+            const rec  = document.getElementById('metricRec');
+            const hint = document.getElementById('recHint');
+            if (totalImpressions >= 20) {
+                const diff = mB - mA;
+                const absDiff = Math.abs(diff);
+                const winner = diff > 0.02 ? 'B' : diff < -0.02 ? 'A' : null;
+                const diffPt = (absDiff * 100).toFixed(1);
+
+                if (winner === 'B') {
+                    rec.style.color = 'var(--green)';
+                    rec.textContent = getRecText('B', persona, stage, skill);
+                    hint.textContent = `差: ${diffPt}pt`;
+                } else if (winner === 'A') {
+                    rec.style.color = 'var(--accent)';
+                    rec.textContent = getRecText('A', persona, stage, skill);
+                    hint.textContent = `差: ${diffPt}pt`;
+                } else {
+                    rec.style.color = 'var(--mid)';
+                    rec.textContent = getRecTextTie(persona, stage, skill);
+                    hint.textContent = '差が2pt未満';
+                }
+
+                // Insight（50件以上で表示）
+                if (totalImpressions >= 50) {
+                    const insight = generateInsight(winner, persona, stage, skill, mA, mB);
+                    document.getElementById('insightText').textContent = insight;
+                    document.getElementById('insightBox').style.display = 'block';
+                }
+            }
+        }
+    </script>
+
+</body>
+</html>
